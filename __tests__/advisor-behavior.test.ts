@@ -74,6 +74,19 @@ describe("advisor behavior contract", () => {
     expect(missingTermFields(profile)).toContain("existing life cover");
   });
 
+  it("treats explicit zero and none answers as provided profile data", () => {
+    const profile = extractProfileFields("I am 35, earn 12 lakh, have 2 kids, no loans, no existing life cover, no savings, non-smoker and retirement age 60");
+
+    expect(profile.outstandingLoans).toBe(0);
+    expect(profile.existingLifeCover).toBe(0);
+    expect(profile.liquidAssets).toBe(0);
+    expect(profile.tobaccoStatus).toBe("no tobacco disclosed");
+    expect(missingTermFields(profile)).not.toContain("outstanding loans");
+    expect(missingTermFields(profile)).not.toContain("existing life cover");
+    expect(missingTermFields(profile)).not.toContain("liquid savings/assets");
+    expect(missingTermFields(profile)).not.toContain("smoking/tobacco status");
+  });
+
   it("uses the concept explanation section structure", () => {
     const answer = deterministicAnswer({
       message: "What is room rent limit?",

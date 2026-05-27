@@ -78,7 +78,8 @@ export async function buildAdvisorResponse(args: {
     productMatches,
     fallbackAnswer: deterministic,
   });
-  const answer = llmAnswer ?? groqAnswer ?? deterministic;
+  const modelAnswer = llmAnswer ?? groqAnswer;
+  const answer = modelAnswer && isStructurallySafe(modelAnswer, classification.intent, classification.insuranceType) ? modelAnswer : deterministic;
   const compliance = checkCompliance({
     text: answer,
     needsAdvice: classification.needsAdvice,
@@ -421,6 +422,22 @@ function suggestedPolicyDuration(result: unknown) {
   return "";
 }
 
+function isStructurallySafe(answer: string, intent: ChatIntent, insuranceType: InsuranceType) {
+  const lowered = answer.toLowerCase();
+  if (lowered.includes("guaranteed claim") || lowered.includes("claim will be paid") || lowered.includes("guaranteed return")) return false;
+  if (!lowered.includes("licensed insurance advisor")) return false;
+  if (intent === "CLAIMS") return includesAll(answer, ["Simple answer:", "Why it matters:", "Example:", "What to check:", "Advisor note:"]) && lowered.includes("cannot guarantee");
+  if (intent === "PRODUCT_COMPARISON") return lowered.includes("not found in source data") || lowered.includes("verified") || lowered.includes("source");
+  if (intent === "CONCEPT_EXPLANATION") return includesAll(answer, ["Simple answer:", "Why it matters:", "Example:", "What to check:", "Advisor note:"]);
+  if (insuranceType === "HEALTH" || intent === "HEALTH_ADVICE") return includesAll(answer, ["Quick summary:", "What to prioritize:", "Red flags:", "Next step:"]) || lowered.includes("what i need next:");
+  if (insuranceType === "TERM" || intent === "TERM_ADVICE") return lowered.includes("medical") && (includesAll(answer, ["Quick summary:", "What to prioritize:", "Red flags:", "Next step:"]) || lowered.includes("what i need next:"));
+  return true;
+}
+
+function includesAll(text: string, needles: string[]) {
+  return needles.every((needle) => text.includes(needle));
+}
+
 async function tryLlmAnswer(args: {
   message: string;
   classification: ReturnType<typeof classifyQuery>;
@@ -438,7 +455,7 @@ async function tryLlmAnswer(args: {
         {
           role: "system",
           content:
-            "You are Priyansh Insurance, a structured Indian insurance advisor. Answer only health insurance and term life insurance questions. Use provided sources and product data only. Never invent premiums, benefits, waiting periods, exclusions, riders, or claim data. Separate educational explanation from personalized recommendation. Include citations labels where product or regulatory facts appear. Mention licensed advisor review for final purchase decisions.",
+            "You are Priyansh Insurance, a structured Indian insurance advisor focused only on health insurance and term life insurance. Preserve the fallbackAnswer section structure unless source data lets you improve wording without changing the contract. Use provided sources and product data only. Never invent premiums, benefits, waiting periods, exclusions, riders, network hospitals, claim settlement ratios, rankings, or IRDAI rules. If source data is missing, say: I don't have verified data for that in the uploaded sources yet. Mention licensed advisor review for final purchase decisions.",
         },
         {
           role: "user",
