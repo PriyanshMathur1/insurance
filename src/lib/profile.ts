@@ -29,8 +29,15 @@ export function extractProfileFields(text: string): ExtractedProfile {
   fields.existingPersonalCover = moneyField(lowered, /(?:personal cover|own cover|existing health cover)\D{0,12}(\d+(?:\.\d+)?)\s*(crore|cr|lakh|lac|l)?/);
   fields.existingEmployerCover = moneyField(lowered, /(?:employer cover|corporate cover|office cover|company cover)\D{0,12}(\d+(?:\.\d+)?)\s*(crore|cr|lakh|lac|l)?/);
   fields.budget = moneyField(lowered, /(?:budget|premium)\D{0,12}(\d+(?:\.\d+)?)\s*(crore|cr|lakh|lac|l)?/);
+  if (/\b(no|zero)\s+(?:loan|loans|debt)\b/.test(lowered)) fields.outstandingLoans = 0;
+  if (/\b(no|zero)\s+(?:existing life cover|life cover)\b/.test(lowered)) fields.existingLifeCover = 0;
+  if (/\b(no|zero)\s+(?:liquid assets|savings|fd|fixed deposit)\b/.test(lowered)) fields.liquidAssets = 0;
+  if (/\b(no|zero)\s+(?:personal cover|own cover|existing health cover)\b/.test(lowered)) fields.existingPersonalCover = 0;
+  if (/\b(no|zero)\s+(?:employer cover|corporate cover|office cover|company cover)\b/.test(lowered)) fields.existingEmployerCover = 0;
   if (lowered.includes("diabetes")) fields.preExistingDiseases = ["diabetes"];
-  if (lowered.includes("smok") || lowered.includes("tobacco")) fields.tobaccoStatus = "needs confirmation";
+  if (/\b(no|none|no known)\s+(?:pre-existing|ped|disease|diseases|medical condition)/.test(lowered)) fields.preExistingDiseases = ["none disclosed"];
+  if (lowered.includes("non-smoker") || lowered.includes("non smoker") || lowered.includes("no tobacco") || lowered.includes("don't smoke") || lowered.includes("do not smoke")) fields.tobaccoStatus = "no tobacco disclosed";
+  else if (lowered.includes("smok") || lowered.includes("tobacco")) fields.tobaccoStatus = "needs confirmation";
   const cityMatch = lowered.match(/\b(mumbai|delhi|bengaluru|bangalore|chennai|hyderabad|pune|kolkata|ahmedabad|jaipur|lucknow|indore|surat)\b/);
   if (cityMatch) fields.city = cityMatch[1];
   const members = [
@@ -51,26 +58,30 @@ export function extractProfileFields(text: string): ExtractedProfile {
 
 export function missingHealthFields(profile: ExtractedProfile) {
   const missing = [];
-  if (!profile.age) missing.push("age");
-  if (!profile.city) missing.push("city");
-  if (!profile.whoNeedsCover) missing.push("who needs cover");
-  if (!profile.existingPersonalCover) missing.push("existing personal health cover");
-  if (!profile.existingEmployerCover) missing.push("employer health cover");
-  if (!profile.preExistingDiseases) missing.push("known pre-existing diseases");
-  if (!profile.budget) missing.push("budget");
-  if (!profile.preference) missing.push("preference: low premium, balanced, or maximum coverage");
+  if (!isPresent(profile.age)) missing.push("age");
+  if (!isPresent(profile.city)) missing.push("city");
+  if (!isPresent(profile.whoNeedsCover)) missing.push("who needs cover");
+  if (!isPresent(profile.existingPersonalCover)) missing.push("existing personal health cover");
+  if (!isPresent(profile.existingEmployerCover)) missing.push("employer health cover");
+  if (!isPresent(profile.preExistingDiseases)) missing.push("known pre-existing diseases");
+  if (!isPresent(profile.budget)) missing.push("budget");
+  if (!isPresent(profile.preference)) missing.push("preference: low premium, balanced, or maximum coverage");
   return missing;
 }
 
 export function missingTermFields(profile: ExtractedProfile) {
   const missing = [];
-  if (!profile.age) missing.push("age");
-  if (!profile.annualIncome) missing.push("annual income");
-  if (!profile.dependents) missing.push("number of dependents");
-  if (!profile.outstandingLoans) missing.push("outstanding loans");
-  if (!profile.existingLifeCover) missing.push("existing life cover");
-  if (!profile.liquidAssets) missing.push("liquid savings/assets");
-  if (!profile.tobaccoStatus) missing.push("smoking/tobacco status");
-  if (!profile.desiredRetirementAge) missing.push("desired retirement age or policy duration");
+  if (!isPresent(profile.age)) missing.push("age");
+  if (!isPresent(profile.annualIncome)) missing.push("annual income");
+  if (!isPresent(profile.dependents)) missing.push("number of dependents");
+  if (!isPresent(profile.outstandingLoans)) missing.push("outstanding loans");
+  if (!isPresent(profile.existingLifeCover)) missing.push("existing life cover");
+  if (!isPresent(profile.liquidAssets)) missing.push("liquid savings/assets");
+  if (!isPresent(profile.tobaccoStatus)) missing.push("smoking/tobacco status");
+  if (!isPresent(profile.desiredRetirementAge)) missing.push("desired retirement age or policy duration");
   return missing;
+}
+
+function isPresent(value: unknown) {
+  return Array.isArray(value) ? value.length > 0 : value !== undefined && value !== null && value !== "";
 }
