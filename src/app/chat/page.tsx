@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown";
 import {
   ArrowUp,
   BookOpenCheck,
+  BadgeCheck,
   ClipboardCheck,
   FileText,
   GitCompare,
@@ -20,6 +21,7 @@ import {
   Sparkles,
   Trash2,
 } from "lucide-react";
+import { trackEvent } from "@/lib/analytics";
 
 type ChatSummary = {
   id: string;
@@ -58,6 +60,15 @@ const samplePrompts = [
   { label: "Claim help", prompt: "My health insurance claim was rejected", icon: LifeBuoy },
 ];
 
+const welcomeActions = [
+  { label: "Find insurance", prompt: "I want to find health insurance for myself or family", icon: ShieldCheck, event: "insurance_type_selected" },
+  { label: "Compare plans", prompt: "Compare plans from the uploaded sources", icon: GitCompare, event: "plan_compared" },
+  { label: "Understand policy", prompt: "Help me understand my health insurance policy document", icon: BookOpenCheck, event: "policy_document_help_started" },
+  { label: "File a claim", prompt: "Help me file a health insurance claim", icon: LifeBuoy, event: "claim_flow_started" },
+  { label: "Renew policy", prompt: "Help me review my health insurance renewal", icon: BadgeCheck, event: "renewal_support_started" },
+  { label: "Speak to expert", prompt: "I want to talk to an insurance expert", icon: HelpCircle, event: "human_handoff_requested" },
+];
+
 const formatStyles: Record<string, { label: string; tone: string; icon: typeof BookOpenCheck }> = {
   concept_explanation: { label: "Concept explainer", tone: "Plain-language answer", icon: BookOpenCheck },
   health_advice: { label: "Health recommendation", tone: "Profile-led guidance", icon: ShieldCheck },
@@ -74,7 +85,8 @@ export default function ChatPage() {
   const [query, setQuery] = useState("");
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
   const activeChatRef = useRef<ChatDetail | null>(null);
 
@@ -82,6 +94,7 @@ export default function ChatPage() {
     const response = await fetch(`/api/chat/${id}`);
     const body = await response.json();
     setActiveChat(body.chat);
+    setSidebarOpen(false);
   }, []);
 
   const loadChats = useCallback(async (search = "") => {
@@ -98,6 +111,7 @@ export default function ChatPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadChats();
+    trackEvent("app_opened", { surface: "chat" });
   }, [loadChats]);
 
   useEffect(() => {
@@ -111,6 +125,7 @@ export default function ChatPage() {
   }, [activeChat]);
 
   async function newChat() {
+    trackEvent("new_chat_started");
     const response = await fetch("/api/chat/new", { method: "POST" });
     const body = await response.json();
     await loadChats();
@@ -127,6 +142,7 @@ export default function ChatPage() {
     event?.preventDefault();
     const text = (override ?? input).trim();
     if (!text) return;
+    setErrorMessage("");
     let chat = activeChat;
     if (!chat) {
       const response = await fetch("/api/chat/new", { method: "POST" });
@@ -137,6 +153,7 @@ export default function ChatPage() {
     if (!chat) return;
     setInput("");
     setLoading(true);
+    trackMessageIntent(text);
     setActiveChat((current) => current ? {
       ...current,
       messages: [...current.messages, { id: `tmp-${Date.now()}`, role: "USER", content: text, createdAt: new Date().toISOString() }],
@@ -150,6 +167,9 @@ export default function ChatPage() {
     if (response.ok) {
       await loadChat(chat.id);
       await loadChats(query);
+    } else {
+      setErrorMessage("I couldn’t complete that just now. You can try again, or I can still explain what coverage you should look for.");
+      trackEvent("error_encountered", { surface: "chat_message", status: response.status });
     }
   }
 
@@ -220,13 +240,17 @@ export default function ChatPage() {
 
         <div className="workspace-grid">
           <section className="conversation-panel">
-            {(activeChat?.messages ?? []).length === 0 ? <EmptyState /> : null}
+            {(activeChat?.messages ?? []).length === 0 ? <EmptyState onPick={(prompt, eventName) => { trackEvent(eventName, { source: "welcome" }); sendMessage(undefined, prompt); }} /> : null}
 
             <div className="message-stack">
               {activeChat?.messages.map((message) => (
-                <MessageBubble key={message.id} message={message} />
+                <MessageBubble key={message.id} message={message} onAsk={(question) => {
+                  trackEvent("suggested_question_clicked", { question });
+                  sendMessage(undefined, question);
+                }} />
               ))}
               {loading ? <LoadingAnswer /> : null}
+              {errorMessage ? <ErrorNotice message={errorMessage} onRetry={() => setErrorMessage("")} /> : null}
               <div ref={endRef} />
             </div>
           </section>
@@ -251,7 +275,10 @@ export default function ChatPage() {
           </form>
           <div className="prompt-row">
             {samplePrompts.map((prompt) => (
-              <button key={prompt.label} onClick={() => sendMessage(undefined, prompt.prompt)}>
+              <button key={prompt.label} onClick={() => {
+                trackEvent("suggested_question_clicked", { question: prompt.prompt, source: "composer" });
+                sendMessage(undefined, prompt.prompt);
+              }}>
                 <prompt.icon size={16} />
                 {prompt.label}
               </button>
@@ -275,7 +302,7 @@ function BrandMark() {
   );
 }
 
-function MessageBubble({ message }: { message: Message }) {
+function MessageBubble({ message, onAsk }: { message: Message; onAsk: (question: string) => void }) {
   const isUser = message.role === "USER";
   return (
     <article className={`message ${isUser ? "message-user" : "message-assistant"}`}>
@@ -287,14 +314,14 @@ function MessageBubble({ message }: { message: Message }) {
             <MessageTime message={message} />
           </div>
         ) : (
-          <StructuredAnswer message={message} />
+          <StructuredAnswer message={message} onAsk={onAsk} />
         )}
       </div>
     </article>
   );
 }
 
-function StructuredAnswer({ message }: { message: Message }) {
+function StructuredAnswer({ message, onAsk }: { message: Message; onAsk: (question: string) => void }) {
   const sections = parseSections(message.content);
   const lead = sections[0];
   const rest = sections.slice(1);
@@ -318,7 +345,7 @@ function StructuredAnswer({ message }: { message: Message }) {
           {rest.map((section) => (
             <section key={section.title} className={sectionClass(section.title)}>
               <h3>{section.title}</h3>
-              <MarkdownBlock content={section.body} />
+              {isQuestionSection(section.title) ? <SuggestedQuestionChips content={section.body} onAsk={onAsk} /> : <MarkdownBlock content={section.body} />}
             </section>
           ))}
         </div>
@@ -349,6 +376,18 @@ function CitationStrip({ citations }: { citations: Citation[] }) {
 }
 
 function LoadingAnswer() {
+  const lines = [
+    "Reviewing your coverage needs...",
+    "Checking benefits and exclusions...",
+    "Preparing a clear recommendation...",
+    "Almost there — comparing what matters...",
+  ];
+  const [lineIndex, setLineIndex] = useState(0);
+  useEffect(() => {
+    const timer = window.setInterval(() => setLineIndex((current) => (current + 1) % lines.length), 1200);
+    return () => window.clearInterval(timer);
+  }, [lines.length]);
+  const line = lines[lineIndex];
   return (
     <article className="message message-assistant">
       <div className="assistant-dot">PI</div>
@@ -358,18 +397,48 @@ function LoadingAnswer() {
           <span />
           <span />
         </div>
-        <p>Checking sources, calculator logic, response format, and compliance...</p>
+        <p>{line}</p>
       </div>
     </article>
   );
 }
 
-function EmptyState() {
+function EmptyState({ onPick }: { onPick: (prompt: string, eventName: string) => void }) {
   return (
     <div className="empty-state">
-      <p className="eyebrow">Structured insurance advisor</p>
-      <h2>Ask once. Get the format that fits the question.</h2>
-      <p>Concepts become explainers, comparisons become source tables, claim questions become triage, and personal advice starts with only the questions that matter.</p>
+      <p className="eyebrow">Trusted insurance assistant</p>
+      <h2>Find, compare, understand, or claim insurance in minutes.</h2>
+      <p>Hi, I’m your insurance assistant. I’ll ask only what’s needed, explain in plain language, and help you decide the next best step.</p>
+      <div className="welcome-actions">
+        {welcomeActions.map((action) => (
+          <button key={action.label} onClick={() => onPick(action.prompt, action.event)}>
+            <action.icon size={18} />
+            <span>{action.label}</span>
+          </button>
+        ))}
+      </div>
+      <p className="trust-note">Estimates can change after insurer verification. I’ll flag policy wording and expert review whenever it matters.</p>
+    </div>
+  );
+}
+
+function SuggestedQuestionChips({ content, onAsk }: { content: string; onAsk: (question: string) => void }) {
+  const questions = extractQuestions(content);
+  if (!questions.length) return <MarkdownBlock content={content} />;
+  return (
+    <div className="suggestion-chips">
+      {questions.map((question) => (
+        <button key={question} onClick={() => onAsk(question)}>{question}</button>
+      ))}
+    </div>
+  );
+}
+
+function ErrorNotice({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="error-notice">
+      <p>{message}</p>
+      <button onClick={onRetry}>Got it</button>
     </div>
   );
 }
@@ -432,10 +501,33 @@ function parseSections(content: string) {
   return sections;
 }
 
+function extractQuestions(content: string) {
+  return content
+    .split("\n")
+    .map((line) => line.replace(/^[-*]\s*/, "").replace(/^Please share /i, "I want to share "))
+    .map((line) => line.trim().replace(/\.$/, ""))
+    .filter(Boolean);
+}
+
+function isQuestionSection(title: string) {
+  const lowered = title.toLowerCase();
+  return lowered.includes("question") || lowered.includes("need next");
+}
+
 function sectionClass(title: string) {
   const lowered = title.toLowerCase();
   if (lowered.includes("question")) return "answer-section answer-section-accent";
   if (lowered.includes("red flag")) return "answer-section answer-section-warn";
   if (lowered.includes("recommended") || lowered.includes("comparison")) return "answer-section answer-section-dark";
   return "answer-section";
+}
+
+function trackMessageIntent(text: string) {
+  const lowered = text.toLowerCase();
+  if (lowered.includes("compare")) trackEvent("plan_compared", { source: "chat" });
+  if (lowered.includes("claim")) trackEvent("claim_flow_started", { source: "chat" });
+  if (lowered.includes("expert") || lowered.includes("advisor")) trackEvent("human_handoff_requested", { source: "chat" });
+  if (/\b\d{10}\b/.test(lowered) || /\S+@\S+\.\S+/.test(text)) trackEvent("lead_submitted", { source: "chat" });
+  if (lowered.includes("health")) trackEvent("insurance_type_selected", { type: "health" });
+  if (lowered.includes("term")) trackEvent("insurance_type_selected", { type: "term" });
 }

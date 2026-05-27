@@ -5,14 +5,17 @@ function firstNumber(text: string, pattern: RegExp) {
   return match ? Number(match[1]) : undefined;
 }
 
-function moneyField(text: string, pattern: RegExp) {
+function moneyField(text: string, pattern: RegExp, defaultSmallUnit: "lakh" | "rupees" = "lakh") {
   const match = text.match(pattern);
   if (!match) return undefined;
   const value = Number(match[1]);
   if (!Number.isFinite(value)) return undefined;
   const unit = match[2]?.toLowerCase();
   if (unit?.startsWith("cr")) return value * 10000000;
-  if (unit?.startsWith("lakh") || unit === "l" || value < 100000) return value * 100000;
+  if (unit === "k" || unit?.startsWith("thousand")) return value * 1000;
+  if (unit?.startsWith("lakh") || unit?.startsWith("lac") || unit === "l") return value * 100000;
+  if (defaultSmallUnit === "rupees") return value;
+  if (value < 100000) return value * 100000;
   return value;
 }
 
@@ -28,7 +31,7 @@ export function extractProfileFields(text: string): ExtractedProfile {
   fields.childrenEducationGoal = moneyField(lowered, /(?:education goal|child education|children education)\D{0,12}(\d+(?:\.\d+)?)\s*(crore|cr|lakh|lac|l)?/);
   fields.existingPersonalCover = moneyField(lowered, /(?:personal cover|own cover|existing health cover)\D{0,12}(\d+(?:\.\d+)?)\s*(crore|cr|lakh|lac|l)?/);
   fields.existingEmployerCover = moneyField(lowered, /(?:employer cover|corporate cover|office cover|company cover)\D{0,12}(\d+(?:\.\d+)?)\s*(crore|cr|lakh|lac|l)?/);
-  fields.budget = moneyField(lowered, /(?:budget|premium)\D{0,12}(\d+(?:\.\d+)?)\s*(crore|cr|lakh|lac|l)?/);
+  fields.budget = moneyField(lowered, /(?:budget|premium)\D{0,12}(\d+(?:\.\d+)?)\s*(crore|cr|lakh|lac|l|k|thousand)?/, "rupees");
   if (/\b(no|zero)\s+(?:loan|loans|debt)\b/.test(lowered)) fields.outstandingLoans = 0;
   if (/\b(no|zero)\s+(?:existing life cover|life cover)\b/.test(lowered)) fields.existingLifeCover = 0;
   if (/\b(no|zero)\s+(?:liquid assets|savings|fd|fixed deposit)\b/.test(lowered)) fields.liquidAssets = 0;

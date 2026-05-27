@@ -24,7 +24,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     });
 
     const assistant = await prisma.message.create({
-      data: { chatId: id, role: "ASSISTANT", content: advisor.answer, citations: advisor.citations, metadata: { compliance: advisor.compliance } },
+      data: { chatId: id, role: "ASSISTANT", content: advisor.answer, citations: advisor.citations, metadata: { compliance: advisor.compliance, quality: advisor.quality, responsePlan: advisor.responsePlan } },
     });
 
     if (advisor.recommendedCover || advisor.productMatches.length) {
@@ -48,6 +48,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         passed: advisor.compliance.passed,
         issues: advisor.compliance.issues,
         revisedText: advisor.compliance.revisedText,
+        metadata: { quality: advisor.quality, responsePlan: advisor.responsePlan },
       },
     });
 
