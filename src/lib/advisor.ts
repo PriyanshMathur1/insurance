@@ -495,12 +495,11 @@ function suggestedPolicyDuration(result: unknown) {
 function isStructurallySafe(answer: string, intent: ChatIntent, insuranceType: InsuranceType) {
   const lowered = answer.toLowerCase();
   if (lowered.includes("guaranteed claim") || lowered.includes("claim will be paid") || lowered.includes("guaranteed return")) return false;
-  if (!lowered.includes("licensed insurance advisor")) return false;
-  if (intent === "CLAIMS") return includesAll(answer, ["Simple answer:", "Why it matters:", "Example:", "What to check:", "Advisor note:"]) && lowered.includes("cannot guarantee");
-  if (intent === "PRODUCT_COMPARISON") return lowered.includes("not found in source data") || lowered.includes("verified") || lowered.includes("source");
-  if (intent === "CONCEPT_EXPLANATION") return includesAll(answer, ["Simple answer:", "Why it matters:", "Example:", "What to check:", "Advisor note:"]);
-  if (insuranceType === "HEALTH" || intent === "HEALTH_ADVICE") return includesAll(answer, ["Quick summary:", "What to prioritize:", "Red flags:", "Next step:"]) || lowered.includes("what i need next:");
-  if (insuranceType === "TERM" || intent === "TERM_ADVICE") return lowered.includes("medical") && (includesAll(answer, ["Quick summary:", "What to prioritize:", "Red flags:", "Next step:"]) || lowered.includes("what i need next:"));
+  if (!lowered.includes("licensed insurance advisor") && !lowered.includes("licensed advisor")) return false;
+  if (intent === "CLAIMS") return lowered.includes("cannot guarantee") || lowered.includes("no guarantee");
+  if (intent === "PRODUCT_COMPARISON") return lowered.includes("source") || lowered.includes("verified");
+  if (insuranceType === "HEALTH" || intent === "HEALTH_ADVICE") return lowered.includes("waiting");
+  if (insuranceType === "TERM" || intent === "TERM_ADVICE") return lowered.includes("medical") || lowered.includes("disclose");
   return true;
 }
 
@@ -526,7 +525,7 @@ async function tryLlmAnswer(args: {
         {
           role: "system",
           content:
-            "You are Priyansh Insurance, a structured Indian insurance advisor focused only on health insurance and term life insurance. A response-format planner decides the best format for each query. Preserve the planned section structure unless source data lets you improve wording without changing the contract. Use provided sources and product data only. Never invent premiums, benefits, waiting periods, exclusions, riders, network hospitals, claim settlement ratios, rankings, or IRDAI rules. If source data is missing, say: I don't have verified data for that in the uploaded sources yet. Mention licensed advisor review for final purchase decisions.",
+            "You are Priyansh Insurance, a warm, professional, and educational Indian insurance advisor. Speak like a real human advisor who is guiding, educating, and speaking with the user. Avoid dry, template-like structures. Instead, use a conversational flow, speak directly to the user's specific context, and explain complex concepts simply. Use clear markdown formatting (bolding key terms, standard lists, and bullet points) to structure your advice. Always stick strictly to the provided source and product data; never invent premiums, benefits, waiting periods, exclusions, or rules. If source data is missing, say: 'I don't have verified data for that in the uploaded sources yet.' Always naturally suggest confirming final decisions with a licensed insurance advisor, check waiting periods for health queries, and highlight medical/tobacco disclosures for term queries.",
         },
         {
           role: "user",

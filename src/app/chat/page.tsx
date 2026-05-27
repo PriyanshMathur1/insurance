@@ -184,10 +184,13 @@ export default function ChatPage() {
 
   return (
     <main className="advisor-shell">
+      {sidebarOpen && (
+        <div onClick={() => setSidebarOpen(false)} className="sidebar-backdrop" />
+      )}
       <aside className={`advisor-sidebar ${sidebarOpen ? "advisor-sidebar-open" : ""}`}>
         <div className="sidebar-head">
           <BrandMark />
-          <button onClick={() => setSidebarOpen(false)} className="icon-button hide-mobile" title="Collapse sidebar">
+          <button onClick={() => setSidebarOpen(false)} className="icon-button" title="Close sidebar">
             <PanelLeftClose size={18} />
           </button>
         </div>
@@ -355,10 +358,92 @@ function StructuredAnswer({ message, onAsk }: { message: Message; onAsk: (questi
   );
 }
 
+function parseMarkdownTable(tableLines: string[]) {
+  if (tableLines.length < 2) return null;
+
+  const parseRow = (line: string) => {
+    const parts = line.split("|").map((s) => s.trim());
+    if (parts[0] === "") parts.shift();
+    if (parts[parts.length - 1] === "") parts.pop();
+    return parts;
+  };
+
+  const headers = parseRow(tableLines[0]);
+  const rows = tableLines.slice(2).map(parseRow);
+
+  return { headers, rows };
+}
+
+function renderContent(content: string) {
+  const lines = content.split("\n");
+  const blocks: Array<{ type: "text" | "table"; content: string | string[] }> = [];
+
+  let currentTable: string[] = [];
+  for (const line of lines) {
+    if (line.trim().startsWith("|")) {
+      currentTable.push(line);
+    } else {
+      if (currentTable.length > 0) {
+        blocks.push({ type: "table", content: currentTable });
+        currentTable = [];
+      }
+      blocks.push({ type: "text", content: line });
+    }
+  }
+  if (currentTable.length > 0) {
+    blocks.push({ type: "table", content: currentTable });
+  }
+
+  const combinedBlocks: typeof blocks = [];
+  for (const block of blocks) {
+    if (block.type === "text") {
+      const prev = combinedBlocks[combinedBlocks.length - 1];
+      if (prev && prev.type === "text") {
+        prev.content = (prev.content as string) + "\n" + (block.content as string);
+      } else {
+        combinedBlocks.push({ ...block });
+      }
+    } else {
+      combinedBlocks.push(block);
+    }
+  }
+
+  return combinedBlocks.map((block, index) => {
+    if (block.type === "table") {
+      const tableData = parseMarkdownTable(block.content as string[]);
+      if (tableData) {
+        return (
+          <div key={index} className="table-responsive my-4">
+            <table>
+              <thead>
+                <tr>
+                  {tableData.headers.map((h, i) => (
+                    <th key={i}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {tableData.rows.map((row, rowIndex) => (
+                  <tr key={rowIndex}>
+                    {row.map((cell, cellIndex) => (
+                      <td key={cellIndex}>{cell}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      }
+    }
+    return <ReactMarkdown key={index}>{block.content as string}</ReactMarkdown>;
+  });
+}
+
 function MarkdownBlock({ content }: { content: string }) {
   return (
     <div className="prose-chat">
-      <ReactMarkdown>{content.trim()}</ReactMarkdown>
+      {renderContent(content.trim())}
     </div>
   );
 }

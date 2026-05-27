@@ -10,6 +10,9 @@ export async function searchProducts(query: string, insuranceType: InsuranceType
       { insurerName: { contains: term, mode: "insensitive" as const } },
       { productName: { contains: term, mode: "insensitive" as const } },
     ]),
+    NOT: {
+      productName: { contains: "— Overview" }
+    }
   };
   if (insuranceType === "TERM") {
     return prisma.termProduct.findMany({ where, take: 8, orderBy: { updatedAt: "desc" } });

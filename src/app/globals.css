@@ -750,6 +750,14 @@ button:disabled {
   }
 }
 
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(2px);
+}
+
 @media (max-width: 760px) {
   .advisor-shell {
     height: 100dvh;
