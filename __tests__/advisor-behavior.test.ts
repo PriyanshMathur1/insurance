@@ -3,6 +3,7 @@ import { deterministicAnswer, buildAdvisorResponse } from "@/lib/advisor";
 import { calculateHealthCover, calculateTermCover } from "@/lib/calculators";
 import { classifyQuery, isOutOfScopeQuery } from "@/lib/classifier";
 import { extractProfileFields, missingHealthFields, missingTermFields } from "@/lib/profile";
+import { rateAdvisorResponse } from "@/lib/quality";
 import { planAdvisorResponse } from "@/lib/response-planner";
 
 describe("advisor behavior contract", () => {
@@ -90,6 +91,21 @@ describe("advisor behavior contract", () => {
     expect(missingTermFields(profile)).not.toContain("smoking/tobacco status");
   });
 
+  it("keeps health premium budgets in rupees when no lakh unit is given", () => {
+    const profile = extractProfileFields("I want health insurance. My budget is around 15000 per year.");
+    const shorthandProfile = extractProfileFields("I want health insurance. Premium budget 15k.");
+
+    expect(profile.budget).toBe(15000);
+    expect(shorthandProfile.budget).toBe(15000);
+  });
+
+  it("classifies buying language as health advice", () => {
+    const classification = classifyQuery("I want health insurance for myself in Mumbai");
+
+    expect(classification.intent).toBe("HEALTH_ADVICE");
+    expect(classification.needsAdvice).toBe(true);
+  });
+
   it("uses the concept explanation section structure", () => {
     const answer = deterministicAnswer({
       message: "What is room rent limit?",
@@ -141,5 +157,59 @@ describe("advisor behavior contract", () => {
     expect(planAdvisorResponse({ insuranceType: "TERM", intent: "TERM_ADVICE", missingFields: ["age"] }).format).toBe("clarifying_questions");
     expect(planAdvisorResponse({ insuranceType: "HEALTH", intent: "PRODUCT_COMPARISON" }).format).toBe("comparison");
     expect(planAdvisorResponse({ insuranceType: "CLAIMS", intent: "CLAIMS" }).format).toBe("claim_triage");
+  });
+
+  it("rates advisor responses across safety, structure, sources, and next steps", () => {
+    const responsePlan = planAdvisorResponse({ insuranceType: "HEALTH", intent: "HEALTH_ADVICE" });
+    const rating = rateAdvisorResponse({
+      text: [
+        "Quick summary:",
+        "This is a suitable starting point.",
+        "",
+        "What I understood:",
+        "Age and city were shared.",
+        "",
+        "Recommended cover:",
+        "Use a practical health cover range.",
+        "",
+        "What to prioritize:",
+        "Check waiting period, room rent, co-pay, and exclusions.",
+        "",
+        "Red flags:",
+        "No major risk flags detected.",
+        "",
+        "Next step:",
+        "Compare policy wording and speak with a licensed insurance advisor.",
+        "",
+        "Next questions:",
+        "- Do you want balanced cover or maximum coverage?",
+      ].join("\n"),
+      insuranceType: "HEALTH",
+      intent: "HEALTH_ADVICE",
+      needsAdvice: true,
+      citationsCount: 0,
+      hasProductFacts: false,
+      responsePlan,
+    });
+
+    expect(rating.score).toBeGreaterThanOrEqual(80);
+    expect(rating.grade).toBe("excellent");
+    expect(rating.reviewFlags).toEqual([]);
+  });
+
+  it("flags unsafe low-quality responses for admin review", () => {
+    const rating = rateAdvisorResponse({
+      text: "This is the best policy and the claim will be paid.",
+      insuranceType: "HEALTH",
+      intent: "HEALTH_ADVICE",
+      needsAdvice: true,
+      citationsCount: 0,
+      hasProductFacts: true,
+      responsePlan: planAdvisorResponse({ insuranceType: "HEALTH", intent: "HEALTH_ADVICE" }),
+    });
+
+    expect(rating.grade).toBe("unsafe");
+    expect(rating.reviewFlags.join(" ")).toContain("unsafe guarantee");
+    expect(rating.reviewFlags.length).toBeGreaterThan(0);
   });
 });

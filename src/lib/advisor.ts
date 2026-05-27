@@ -7,6 +7,7 @@ import { handoffReason } from "@/lib/handoff";
 import { getOpenAI } from "@/lib/openai";
 import { extractProfileFields, missingHealthFields, missingTermFields, type ExtractedProfile } from "@/lib/profile";
 import { formatProductTable, searchProducts } from "@/lib/products";
+import { rateAdvisorResponse, type AdvisorQualityRating } from "@/lib/quality";
 import { searchRag, type Citation } from "@/lib/rag";
 import { planAdvisorResponse, type ResponsePlan } from "@/lib/response-planner";
 
@@ -22,6 +23,7 @@ export type AdvisorResult = {
   productMatches: unknown[];
   handoffReason: string | null;
   responsePlan: ResponsePlan;
+  quality: AdvisorQualityRating;
 };
 
 export async function buildAdvisorResponse(args: {
@@ -41,6 +43,15 @@ export async function buildAdvisorResponse(args: {
       citationsCount: 0,
       hasProductFacts: false,
     });
+    const quality = rateAdvisorResponse({
+      text: answer,
+      needsAdvice: false,
+      insuranceType: "GENERAL",
+      intent: "GENERAL_EDUCATION",
+      citationsCount: 0,
+      hasProductFacts: false,
+      responsePlan,
+    });
     return {
       answer,
       citations: [],
@@ -52,6 +63,7 @@ export async function buildAdvisorResponse(args: {
       productMatches: [],
       handoffReason: null,
       responsePlan,
+      quality,
     };
   }
   const citations = await searchRag(args.message, classification.insuranceType);
@@ -102,6 +114,15 @@ export async function buildAdvisorResponse(args: {
     hasProductFacts: productMatches.length > 0 || citations.length > 0,
   });
   const finalAnswer = compliance.revisedText ?? answer;
+  const quality = rateAdvisorResponse({
+    text: finalAnswer,
+    needsAdvice: classification.needsAdvice,
+    insuranceType: classification.insuranceType,
+    intent: classification.intent,
+    citationsCount: citations.length,
+    hasProductFacts: productMatches.length > 0 || citations.length > 0,
+    responsePlan,
+  });
   const reason = handoffReason({
     message: args.message,
     insuranceType: classification.insuranceType,
@@ -122,6 +143,7 @@ export async function buildAdvisorResponse(args: {
     productMatches,
     handoffReason: reason,
     responsePlan,
+    quality,
   };
 }
 

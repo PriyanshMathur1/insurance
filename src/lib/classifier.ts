@@ -10,7 +10,7 @@ const healthWords = ["health", "family floater", "waiting period", "ped", "diabe
 const termWords = ["term", "life cover", "sum assured", "suicide", "rider", "waiver", "income", "dependents", "death benefit", "tobacco"];
 const claimsWords = ["claim", "rejected", "dispute", "ombudsman", "cashless", "reimbursement"];
 const compareWords = ["compare", "vs", "versus", "lower", "show plans", "which plans"];
-const recommendationWords = ["should i", "how much", "recommend", "good for", "need", "take", "buy", "select"];
+const recommendationWords = ["should i", "how much", "recommend", "good for", "need", "take", "buy", "select", "want", "find", "looking for"];
 const outOfScopeWords = ["mutual fund", "stock", "loan", "tax planning", "motor insurance", "car insurance", "bike insurance", "travel insurance", "ulip", "investment"];
 
 export function classifyQuery(input: string): Classification {

@@ -8,6 +8,7 @@ export function handoffReason(args: {
   citationsCount: number;
 }) {
   const text = args.message.toLowerCase();
+  if (text.includes("expert") || text.includes("connect me") || text.includes("talk to an advisor") || text.includes("speak to an advisor")) return "User requested human expert support.";
   if (text.includes("buy") || text.includes("final") || text.includes("select")) return "User is asking for purchase or final product selection.";
   if (text.includes("diabetes") || text.includes("pre-existing") || text.includes("ped")) return "Pre-existing disease suitability needs licensed advisor review.";
   if (text.includes("senior") || text.includes("father") || text.includes("mother") || text.includes("parent")) return "Senior citizen or parent cover requires careful underwriting review.";
