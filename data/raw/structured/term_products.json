@@ -1,0 +1,29 @@
+[
+  {
+    "insurerName": "HDFC Life",
+    "productName": "Mock Click 2 Protect",
+    "policyTerm": "5-40 years",
+    "sumAssuredRange": "50 lakh and above",
+    "criticalIllnessRider": "Optional",
+    "waiverOfPremiumRider": "Optional",
+    "suicideClause": "As per policy wording; usually limited benefit in first year"
+  },
+  {
+    "insurerName": "ICICI Prudential",
+    "productName": "Mock iProtect Smart",
+    "policyTerm": "5-40 years",
+    "sumAssuredRange": "50 lakh and above",
+    "criticalIllnessRider": "Optional",
+    "waiverOfPremiumRider": "Optional",
+    "suicideClause": "As per policy wording; usually limited benefit in first year"
+  },
+  {
+    "insurerName": "Max Life",
+    "productName": "Mock Smart Secure Plus",
+    "policyTerm": "10-45 years",
+    "sumAssuredRange": "25 lakh and above",
+    "criticalIllnessRider": "Optional",
+    "waiverOfPremiumRider": "Optional",
+    "suicideClause": "As per policy wording; usually limited benefit in first year"
+  }
+]

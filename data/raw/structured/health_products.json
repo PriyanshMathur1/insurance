@@ -1,0 +1,29 @@
+[
+  {
+    "insurerName": "HDFC ERGO",
+    "productName": "Mock Optima Secure",
+    "sumInsuredOptions": ["10 lakh", "15 lakh", "25 lakh"],
+    "preExistingDiseaseWaitingPeriod": "36 months",
+    "roomRentLimit": "No standard room rent sub-limit in mock data",
+    "restorationBenefit": "Available",
+    "sourceDocument": "mock-health-products.md"
+  },
+  {
+    "insurerName": "Star Health",
+    "productName": "Mock Family Health Optima",
+    "sumInsuredOptions": ["5 lakh", "10 lakh", "20 lakh"],
+    "preExistingDiseaseWaitingPeriod": "48 months",
+    "roomRentLimit": "Data missing",
+    "restorationBenefit": "Available",
+    "sourceDocument": "mock-health-products.md"
+  },
+  {
+    "insurerName": "Care Health",
+    "productName": "Mock Care Supreme",
+    "sumInsuredOptions": ["7 lakh", "10 lakh", "25 lakh"],
+    "preExistingDiseaseWaitingPeriod": "36 months",
+    "roomRentLimit": "Single private room in mock data",
+    "restorationBenefit": "Available",
+    "sourceDocument": "mock-health-products.md"
+  }
+]
