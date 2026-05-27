@@ -3,6 +3,7 @@ import { deterministicAnswer, buildAdvisorResponse } from "@/lib/advisor";
 import { calculateHealthCover, calculateTermCover } from "@/lib/calculators";
 import { classifyQuery, isOutOfScopeQuery } from "@/lib/classifier";
 import { extractProfileFields, missingHealthFields, missingTermFields } from "@/lib/profile";
+import { planAdvisorResponse } from "@/lib/response-planner";
 
 describe("advisor behavior contract", () => {
   it("returns the exact boundary for out-of-scope finance questions", async () => {
@@ -40,6 +41,7 @@ describe("advisor behavior contract", () => {
     expect(answer).toContain("employer health cover");
     expect(answer).toContain("known pre-existing diseases");
     expect(answer).toContain("licensed insurance advisor");
+    expect(answer).toContain("Next questions:");
     expect(missingHealthFields(profile).length).toBeGreaterThan(0);
   });
 
@@ -71,6 +73,7 @@ describe("advisor behavior contract", () => {
     expect(answer).toContain("existing life cover");
     expect(answer).toContain("liquid savings/assets");
     expect(answer).toContain("tobacco");
+    expect(answer).toContain("Next questions:");
     expect(missingTermFields(profile)).toContain("existing life cover");
   });
 
@@ -129,6 +132,14 @@ describe("advisor behavior contract", () => {
     expect(answer).toContain("I cannot guarantee approval");
     expect(answer).toContain("PED waiting period");
     expect(answer).toContain("disclosure status");
+    expect(answer).toContain("Next questions:");
     expect(answer).not.toContain("claim will be paid");
+  });
+
+  it("plans the best response format for major query shapes", () => {
+    expect(planAdvisorResponse({ insuranceType: "HEALTH", intent: "CONCEPT_EXPLANATION" }).format).toBe("concept");
+    expect(planAdvisorResponse({ insuranceType: "TERM", intent: "TERM_ADVICE", missingFields: ["age"] }).format).toBe("clarifying_questions");
+    expect(planAdvisorResponse({ insuranceType: "HEALTH", intent: "PRODUCT_COMPARISON" }).format).toBe("comparison");
+    expect(planAdvisorResponse({ insuranceType: "CLAIMS", intent: "CLAIMS" }).format).toBe("claim_triage");
   });
 });

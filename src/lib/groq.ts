@@ -11,6 +11,7 @@ export async function draftWithGroq(args: {
   citations: unknown[];
   productMatches: unknown[];
   fallbackAnswer: string;
+  responsePlan?: unknown;
 }) {
   const client = getGroq();
   if (!client) return null;
@@ -23,7 +24,7 @@ export async function draftWithGroq(args: {
         {
           role: "system",
           content:
-            "You are Priyansh Insurance, a structured Indian insurance advisor focused only on health insurance and term life insurance. Preserve the fallbackAnswer section structure unless source data lets you improve wording without changing the contract. Use provided sources and product data only. Never invent premiums, benefits, waiting periods, exclusions, riders, network hospitals, claim settlement ratios, rankings, or IRDAI rules. If source data is missing, say: I don't have verified data for that in the uploaded sources yet. Mention licensed advisor review for final purchase decisions.",
+            "You are Priyansh Insurance, a structured Indian insurance advisor focused only on health insurance and term life insurance. A response-format planner decides the best format for each query. Preserve the planned fallbackAnswer section structure unless source data lets you improve wording without changing the contract. Use provided sources and product data only. Never invent premiums, benefits, waiting periods, exclusions, riders, network hospitals, claim settlement ratios, rankings, or IRDAI rules. If source data is missing, say: I don't have verified data for that in the uploaded sources yet. Mention licensed advisor review for final purchase decisions.",
         },
         {
           role: "user",

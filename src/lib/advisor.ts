@@ -8,6 +8,7 @@ import { getOpenAI } from "@/lib/openai";
 import { extractProfileFields, missingHealthFields, missingTermFields, type ExtractedProfile } from "@/lib/profile";
 import { formatProductTable, searchProducts } from "@/lib/products";
 import { searchRag, type Citation } from "@/lib/rag";
+import { planAdvisorResponse, type ResponsePlan } from "@/lib/response-planner";
 
 export type AdvisorResult = {
   answer: string;
@@ -20,6 +21,7 @@ export type AdvisorResult = {
   riskFlags: string[];
   productMatches: unknown[];
   handoffReason: string | null;
+  responsePlan: ResponsePlan;
 };
 
 export async function buildAdvisorResponse(args: {
@@ -31,6 +33,7 @@ export async function buildAdvisorResponse(args: {
   const extractedProfile = { ...(args.existingProfile ?? {}), ...extractProfileFields(args.message) };
   if (isOutOfScopeQuery(args.message)) {
     const answer = "I can help only with health insurance and term life insurance.";
+    const responsePlan = planAdvisorResponse({ insuranceType: "GENERAL", intent: "GENERAL_EDUCATION" });
     const compliance = checkCompliance({
       text: answer,
       needsAdvice: false,
@@ -48,11 +51,19 @@ export async function buildAdvisorResponse(args: {
       riskFlags: [],
       productMatches: [],
       handoffReason: null,
+      responsePlan,
     };
   }
   const citations = await searchRag(args.message, classification.insuranceType);
   const productMatches = await searchProducts(args.message, classification.insuranceType);
   const computed = computeRecommendation(classification.insuranceType, extractedProfile);
+  const missingFields = missingFieldsFor(classification.insuranceType, extractedProfile);
+  const responsePlan = planAdvisorResponse({
+    insuranceType: classification.insuranceType,
+    intent: classification.intent,
+    missingFields,
+    hasProductMatches: productMatches.length > 0,
+  });
   const recommendedCover = hasEnoughForRecommendation(classification.insuranceType, extractedProfile) ? computed.recommendedCover : undefined;
   const riskFlags = computed.riskFlags;
   const deterministic = deterministicAnswer({
@@ -63,6 +74,7 @@ export async function buildAdvisorResponse(args: {
     citations,
     productMatches,
     computed,
+    responsePlan,
   });
   const llmAnswer = await tryLlmAnswer({
     message: args.message,
@@ -70,14 +82,16 @@ export async function buildAdvisorResponse(args: {
     citations,
     productMatches,
     deterministic,
+    responsePlan,
   });
   const groqAnswer = llmAnswer ? null : await draftWithGroq({
     userQuestion: args.message,
     classification,
     citations,
     productMatches,
-    fallbackAnswer: deterministic,
-  });
+      fallbackAnswer: deterministic,
+      responsePlan,
+    });
   const modelAnswer = llmAnswer ?? groqAnswer;
   const answer = modelAnswer && isStructurallySafe(modelAnswer, classification.intent, classification.insuranceType) ? modelAnswer : deterministic;
   const compliance = checkCompliance({
@@ -107,6 +121,7 @@ export async function buildAdvisorResponse(args: {
     riskFlags,
     productMatches,
     handoffReason: reason,
+    responsePlan,
   };
 }
 
@@ -114,6 +129,12 @@ function hasEnoughForRecommendation(insuranceType: InsuranceType, profile: Extra
   if (insuranceType === "TERM") return missingTermFields(profile).length === 0;
   if (insuranceType === "HEALTH" || insuranceType === "CLAIMS") return missingHealthFields(profile).length === 0;
   return false;
+}
+
+function missingFieldsFor(insuranceType: InsuranceType, profile: ExtractedProfile) {
+  if (insuranceType === "TERM") return missingTermFields(profile);
+  if (insuranceType === "HEALTH" || insuranceType === "CLAIMS") return missingHealthFields(profile);
+  return [];
 }
 
 function computeRecommendation(insuranceType: InsuranceType, profile: ExtractedProfile) {
@@ -152,6 +173,7 @@ export function deterministicAnswer(args: {
   citations: Citation[];
   productMatches: unknown[];
   computed: ReturnType<typeof computeRecommendation>;
+  responsePlan?: ResponsePlan;
 }) {
   if (args.insuranceType === "MIXED") {
     return [
@@ -167,6 +189,9 @@ export function deterministicAnswer(args: {
       "",
       "Advisor note:",
       "Share either your health-insurance details or term-insurance details first, and I will keep the advice focused. Final purchase decisions should be confirmed with a licensed insurance advisor.",
+      "",
+      "Next questions:",
+      "- Should we handle health insurance first or term insurance first?",
     ].join("\n");
   }
 
@@ -183,6 +208,10 @@ export function deterministicAnswer(args: {
       "",
       "What to check:",
       comparisonChecklist(args.insuranceType),
+      "",
+      "Next questions:",
+      "- What criteria should I optimize for: low premium, balanced cover, or maximum coverage?",
+      "- Who should be covered: self, spouse, children, or parents?",
       "",
       "Advisor note:",
       "This looks useful only to the extent the uploaded source data is complete. Verify the policy wording, brochure, prospectus, premium chart, and claim process document before purchase. Final purchase decisions should be confirmed with a licensed insurance advisor.",
@@ -213,6 +242,9 @@ export function deterministicAnswer(args: {
         "",
         "Advisor note:",
         "Disclose medical history and tobacco use honestly. Non-disclosure can cause claim rejection. Final purchase decisions should be confirmed with a licensed insurance advisor.",
+        "",
+        "Next questions:",
+        ...missing.slice(0, 3).map((field) => `- Please share ${field}.`),
         sourceLine,
       ].join("\n");
     }
@@ -239,6 +271,10 @@ export function deterministicAnswer(args: {
       "",
       "Next step:",
       "Compare eligible policies using policy wording, brochure, premium illustration, claim process document, and medical underwriting rules. Final purchase decisions should be confirmed with a licensed insurance advisor.",
+      "",
+      "Next questions:",
+      "- Do you want the cover till age 60, 65, or another retirement age?",
+      "- Should we evaluate riders separately after fixing the base cover?",
       sourceLine,
     ].join("\n");
   }
@@ -258,6 +294,9 @@ export function deterministicAnswer(args: {
         "",
         "Advisor note:",
         "When we compare plans, we will check room rent limit, co-pay, deductible, PED waiting period, specific disease waiting period, restoration benefit, network hospitals, major exclusions, and claim process. Final purchase decisions should be confirmed with a licensed insurance advisor.",
+        "",
+        "Next questions:",
+        ...missing.slice(0, 3).map((field) => `- Please share ${field}.`),
         sourceLine,
       ].join("\n");
     }
@@ -282,6 +321,10 @@ export function deterministicAnswer(args: {
       "",
       "Next step:",
       "Shortlist plans only after checking policy wording, brochure, prospectus, premium chart, and claim process document. Final purchase decisions should be confirmed with a licensed insurance advisor.",
+      "",
+      "Next questions:",
+      "- Do you want low premium, balanced cover, or maximum coverage?",
+      "- Should parents be evaluated in a separate policy?",
       sourceLine,
     ].join("\n");
   }
@@ -345,6 +388,11 @@ function claimGuidance(insuranceType: InsuranceType, sourceLine: string) {
     isTerm
       ? "- Policy status and premium payment history.\n- Proposal form disclosures for smoking, tobacco, and medical history.\n- Cause and date of death, nominee documents, and suicide clause.\n- Claim form, death certificate, medical records, and insurer queries."
       : "- Policy type, diagnosis, hospitalization dates, and discharge summary.\n- PED waiting period and specific disease waiting period status.\n- Whether the condition was disclosed at purchase.\n- Room rent limit, co-pay, exclusions, and missing documents.",
+    "",
+    "Next questions:",
+    isTerm
+      ? "- Was the policy active on the date of death?\n- Was smoking, tobacco use, and medical history disclosed in the proposal form?\n- What reason did the insurer give in writing?"
+      : "- What was the diagnosis and hospitalization date?\n- Was this condition disclosed when buying the policy?\n- Is the PED or specific disease waiting period over?\n- What reason did the insurer give in writing?",
     "",
     "Advisor note:",
     "Share the policy type, event or diagnosis, waiting-period status, disclosure status, and hospitalization or nominee details. For disputes, preserve written communication and consider a licensed advisor, insurer grievance team, or ombudsman review.",
@@ -444,6 +492,7 @@ async function tryLlmAnswer(args: {
   citations: Citation[];
   productMatches: unknown[];
   deterministic: string;
+  responsePlan: ResponsePlan;
 }) {
   const client = getOpenAI();
   if (!client) return null;
@@ -455,7 +504,7 @@ async function tryLlmAnswer(args: {
         {
           role: "system",
           content:
-            "You are Priyansh Insurance, a structured Indian insurance advisor focused only on health insurance and term life insurance. Preserve the fallbackAnswer section structure unless source data lets you improve wording without changing the contract. Use provided sources and product data only. Never invent premiums, benefits, waiting periods, exclusions, riders, network hospitals, claim settlement ratios, rankings, or IRDAI rules. If source data is missing, say: I don't have verified data for that in the uploaded sources yet. Mention licensed advisor review for final purchase decisions.",
+            "You are Priyansh Insurance, a structured Indian insurance advisor focused only on health insurance and term life insurance. A response-format planner decides the best format for each query. Preserve the planned section structure unless source data lets you improve wording without changing the contract. Use provided sources and product data only. Never invent premiums, benefits, waiting periods, exclusions, riders, network hospitals, claim settlement ratios, rankings, or IRDAI rules. If source data is missing, say: I don't have verified data for that in the uploaded sources yet. Mention licensed advisor review for final purchase decisions.",
         },
         {
           role: "user",
@@ -464,6 +513,7 @@ async function tryLlmAnswer(args: {
             classification: args.classification,
             sourceSnippets: args.citations,
             productMatches: args.productMatches,
+            responsePlan: args.responsePlan,
             fallbackAnswer: args.deterministic,
           }),
         },
