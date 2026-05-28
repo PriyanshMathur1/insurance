@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * ingest-rag.ts
  * ─────────────────────────────────────────────────────────────────────────────
@@ -17,7 +18,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import readline from "node:readline";
 import { Prisma, PrismaClient } from "@prisma/client";
-import { embedTexts, vectorLiteral } from "../src/lib/openai";
+import { embedText, vectorLiteral } from "../src/lib/openai";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const RAG_DIR = path.resolve(
@@ -97,27 +98,15 @@ async function embedBatch(items: Array<{ id: string; content: string }>) {
 
     await Promise.all(
       groups.map(async (group) => {
-        if (group.length === 0) return;
-
-        const contents = group.map((item) => item.content);
-        const vecs = await embedTexts(contents);
-
-        if (vecs && vecs.length === group.length) {
-          const ids = group.map((item) => item.id);
-          const vectors = vecs.map((vec) => vectorLiteral(vec));
-
-          await prisma.$executeRawUnsafe(
-            `
-            UPDATE "DocumentChunk" AS d
-            SET "embedding" = c.embedding::vector
-            FROM (
-              SELECT unnest($1::text[]) AS id, unnest($2::text[])::vector AS embedding
-            ) AS c
-            WHERE d."id" = c.id
-            `,
-            ids,
-            vectors
-          );
+        for (const item of group) {
+          const vec = await embedText(item.content);
+          if (vec) {
+            await prisma.$executeRawUnsafe(
+              `UPDATE "DocumentChunk" SET "embedding" = $1::vector WHERE "id" = $2`,
+              vectorLiteral(vec),
+              item.id
+            );
+          }
         }
       })
     );

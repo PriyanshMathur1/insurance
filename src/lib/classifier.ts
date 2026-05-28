@@ -38,27 +38,8 @@ export function classifyQuery(input: string): Classification {
   return { insuranceType, intent, needsAdvice: hasRecommendation || hasCompare || hasClaims };
 }
 
-const genericInsuranceWords = ["insurance", "policy", "premium", "cover", "plan"];
-
 export function isOutOfScopeQuery(input: string) {
   const text = input.toLowerCase();
-
-  if (outOfScopeWords.some((word) => text.includes(word))) return true;
-
-  const hasInScopeSignal = healthWords.some((word) => text.includes(word)) ||
-                           termWords.some((word) => text.includes(word)) ||
-                           claimsWords.some((word) => text.includes(word)) ||
-                           genericInsuranceWords.some((word) => text.includes(word));
-  if (hasInScopeSignal) return false;
-
-  const isProfileAnswer = /^\s*(yes|no|none|\d+|mumbai|delhi|bangalore|chennai|kolkata|pune|hyderabad|ahmedabad)\s*$/i.test(text) || /\b(lakh|crore|k|yr|years?|old)\b/i.test(text);
-  if (isProfileAnswer) return false;
-
-  const isQuestion = text.includes("?") || /^(who|what|where|when|why|how|which)\b/.test(text.trim());
-  if (isQuestion) return true;
-
-  const wordCount = text.trim().split(/\s+/).length;
-  if (wordCount >= 3) return true;
-
-  return false;
+  const hasInScopeSignal = healthWords.some((word) => text.includes(word)) || termWords.some((word) => text.includes(word)) || claimsWords.some((word) => text.includes(word));
+  return !hasInScopeSignal && outOfScopeWords.some((word) => text.includes(word));
 }
