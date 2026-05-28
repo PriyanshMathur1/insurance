@@ -283,6 +283,8 @@ async function flushProcessedChunkBatch(batch: Array<{
   content: string;
   metadata: Prisma.InputJsonObject;
 }>) {
+  if (!batch.length) return;
+
   await prisma.documentChunk.createMany({
     skipDuplicates: true,
     data: batch,
@@ -290,21 +292,43 @@ async function flushProcessedChunkBatch(batch: Array<{
 
   if (!embedOnIngest) return;
 
-  for (const item of batch) {
-    const row = await prisma.documentChunk.findUnique({
-      where: {
-        sourceDocumentId_chunkIndex: {
-          sourceDocumentId: item.sourceDocumentId,
-          chunkIndex: item.chunkIndex,
-        },
-      },
-      select: { id: true },
-    });
-    if (!row) continue;
-    const embedding = await embedText(item.content);
-    if (embedding) {
-      await prisma.$executeRawUnsafe(`UPDATE "DocumentChunk" SET "embedding" = $1::vector WHERE "id" = $2`, vectorLiteral(embedding), row.id);
-    }
+  const conditions = batch.map((item) => ({
+    sourceDocumentId: item.sourceDocumentId,
+    chunkIndex: item.chunkIndex,
+  }));
+
+  const rows = await prisma.documentChunk.findMany({
+    where: { OR: conditions },
+    select: { id: true, sourceDocumentId: true, chunkIndex: true },
+  });
+
+  const rowMap = new Map();
+  for (const row of rows) {
+    rowMap.set(`${row.sourceDocumentId}_${row.chunkIndex}`, row);
+  }
+
+  const itemsWithEmbeddings = await Promise.all(
+    batch.map(async (item) => {
+      const row = rowMap.get(`${item.sourceDocumentId}_${item.chunkIndex}`);
+      if (!row) return null;
+      const embedding = await embedText(item.content);
+      if (!embedding) return null;
+      return { id: row.id, embedding };
+    })
+  );
+
+  const updates = itemsWithEmbeddings
+    .filter((item) => item !== null)
+    .map((item) =>
+      prisma.$executeRawUnsafe(
+        `UPDATE "DocumentChunk" SET "embedding" = $1::vector WHERE "id" = $2`,
+        vectorLiteral(item!.embedding),
+        item!.id
+      )
+    );
+
+  if (updates.length > 0) {
+    await prisma.$transaction(updates);
   }
 }
 
