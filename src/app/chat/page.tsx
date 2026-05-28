@@ -481,36 +481,23 @@ function formatMeta(intent?: string) {
   return formatStyles[(intent ?? "general_education").toLowerCase()] ?? formatStyles.general_education;
 }
 
-type Section = { title: string; body: string[] };
-
-function getSectionHeader(line: string) {
-  const match = line.match(/^([A-Z][A-Za-z /&-]{2,40}):\s*$/);
-  return match ? match[1] : null;
-}
-
-function commitSection(current: Section | null, sections: Array<{ title: string; body: string }>) {
-  if (current) {
-    sections.push({ title: current.title, body: current.body.join("\n") });
-  }
-}
-
 function parseSections(content: string) {
   const lines = content.split("\n");
   const sections: Array<{ title: string; body: string }> = [];
-  let current: Section | null = null;
+  let current: { title: string; body: string[] } | null = null;
 
   for (const line of lines) {
-    const headerTitle = getSectionHeader(line);
-    if (headerTitle) {
-      commitSection(current, sections);
-      current = { title: headerTitle, body: [] };
+    const match = line.match(/^([A-Z][A-Za-z /&-]{2,40}):\s*$/);
+    if (match) {
+      if (current) sections.push({ title: current.title, body: current.body.join("\n") });
+      current = { title: match[1], body: [] };
     } else if (current) {
       current.body.push(line);
     } else if (line.trim()) {
       current = { title: "Simple answer", body: [line] };
     }
   }
-  commitSection(current, sections);
+  if (current) sections.push({ title: current.title, body: current.body.join("\n") });
   return sections;
 }
 
