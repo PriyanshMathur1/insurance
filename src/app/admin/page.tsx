@@ -45,6 +45,10 @@ type AdminData = {
   quality: QualityData | null;
 };
 
+/**
+ * Next.js page component for the Admin / Advisor Dashboard.
+ * This route is actively linked from the Chat page sidebar.
+ */
 export default function AdminPage() {
   const [data, setData] = useState<AdminData>({ chats: [], handoffs: [], logs: [], products: {}, documents: [], quality: null });
   const [loading, setLoading] = useState(false);
