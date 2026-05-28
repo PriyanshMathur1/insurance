@@ -5,8 +5,8 @@ import { ArrowRight, Database, LockKeyhole, ShieldCheck, Sparkles } from "lucide
 
 export default function LoginPage() {
   const [mode, setMode] = useState<"login" | "signup">("login");
-  const [email, setEmail] = useState("dummy@priyanshinsurance.local");
-  const [password, setPassword] = useState("dummy12345");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
