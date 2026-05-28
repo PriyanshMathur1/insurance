@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { embedText, vectorLiteral } from "@/lib/openai";
-import type { InsuranceType } from "@prisma/client";
+import { Prisma, type InsuranceType } from "@prisma/client";
 
 export type Citation = {
   title: string;
@@ -41,13 +41,9 @@ export async function searchRag(
     // ── Vector search path ──────────────────────────────────────────────────
     const vector = vectorLiteral(embedding);
 
-    // Build optional filters
-    const typeFilter =
-      insuranceType && insuranceType !== "MIXED"
-        ? `AND s."insuranceType"::text = '${insuranceType}'`
-        : "";
+    const typeVal = insuranceType && insuranceType !== "MIXED" ? insuranceType : null;
 
-    const rows = await prisma.$queryRawUnsafe<
+    const rows = await prisma.$queryRaw<
       Array<{
         title: string;
         filename: string;
@@ -58,17 +54,14 @@ export async function searchRag(
         metadata: unknown;
       }>
     >(
-      `SELECT s."title", s."filename", s."documentType",
+      Prisma.sql`SELECT s."title", s."filename", s."documentType",
               s."insurerName", s."productName",
               c."content", c."metadata"
        FROM "DocumentChunk" c
        JOIN "SourceDocument" s ON s."id" = c."sourceDocumentId"
-       WHERE ($1::text IS NULL OR s."insuranceType"::text = $1)
-       ORDER BY c."embedding" <=> $2::vector
-       LIMIT $3`,
-      insuranceType && insuranceType !== "MIXED" ? insuranceType : null,
-      vector,
-      limit,
+       WHERE (${typeVal}::text IS NULL OR s."insuranceType"::text = ${typeVal})
+       ORDER BY c."embedding" <=> ${vector}::vector
+       LIMIT ${limit}`
     );
 
     const results = rows.map(toCitation);
