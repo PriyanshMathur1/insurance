@@ -6,7 +6,14 @@ import { prisma } from "@/lib/prisma";
 const cookieName = "pi_session";
 
 function secretKey() {
-  return new TextEncoder().encode(process.env.JWT_SECRET ?? "dev-secret-change-me");
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("JWT_SECRET environment variable is not set in production");
+    }
+    return new TextEncoder().encode("dev-secret-change-me");
+  }
+  return new TextEncoder().encode(secret);
 }
 
 export async function hashPassword(password: string) {
