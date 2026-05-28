@@ -59,30 +59,34 @@ export function extractProfileFields(text: string): ExtractedProfile {
   return fields;
 }
 
+const HEALTH_REQUIREMENTS: [string, string][] = [
+  ["age", "age"],
+  ["city", "city"],
+  ["whoNeedsCover", "who needs cover"],
+  ["existingPersonalCover", "existing personal health cover"],
+  ["existingEmployerCover", "employer health cover"],
+  ["preExistingDiseases", "known pre-existing diseases"],
+  ["budget", "budget"],
+  ["preference", "preference: low premium, balanced, or maximum coverage"],
+];
+
 export function missingHealthFields(profile: ExtractedProfile) {
-  const missing = [];
-  if (!isPresent(profile.age)) missing.push("age");
-  if (!isPresent(profile.city)) missing.push("city");
-  if (!isPresent(profile.whoNeedsCover)) missing.push("who needs cover");
-  if (!isPresent(profile.existingPersonalCover)) missing.push("existing personal health cover");
-  if (!isPresent(profile.existingEmployerCover)) missing.push("employer health cover");
-  if (!isPresent(profile.preExistingDiseases)) missing.push("known pre-existing diseases");
-  if (!isPresent(profile.budget)) missing.push("budget");
-  if (!isPresent(profile.preference)) missing.push("preference: low premium, balanced, or maximum coverage");
-  return missing;
+  return HEALTH_REQUIREMENTS.filter(([key]) => !isPresent(profile[key])).map(([, label]) => label);
 }
 
+const TERM_REQUIREMENTS: [string, string][] = [
+  ["age", "age"],
+  ["annualIncome", "annual income"],
+  ["dependents", "number of dependents"],
+  ["outstandingLoans", "outstanding loans"],
+  ["existingLifeCover", "existing life cover"],
+  ["liquidAssets", "liquid savings/assets"],
+  ["tobaccoStatus", "smoking/tobacco status"],
+  ["desiredRetirementAge", "desired retirement age or policy duration"],
+];
+
 export function missingTermFields(profile: ExtractedProfile) {
-  const missing = [];
-  if (!isPresent(profile.age)) missing.push("age");
-  if (!isPresent(profile.annualIncome)) missing.push("annual income");
-  if (!isPresent(profile.dependents)) missing.push("number of dependents");
-  if (!isPresent(profile.outstandingLoans)) missing.push("outstanding loans");
-  if (!isPresent(profile.existingLifeCover)) missing.push("existing life cover");
-  if (!isPresent(profile.liquidAssets)) missing.push("liquid savings/assets");
-  if (!isPresent(profile.tobaccoStatus)) missing.push("smoking/tobacco status");
-  if (!isPresent(profile.desiredRetirementAge)) missing.push("desired retirement age or policy duration");
-  return missing;
+  return TERM_REQUIREMENTS.filter(([key]) => !isPresent(profile[key])).map(([, label]) => label);
 }
 
 function isPresent(value: unknown) {
