@@ -63,8 +63,18 @@ export async function GET() {
       counts[review.quality.grade] += 1;
       return counts;
     }, { excellent: 0, good: 0, needs_review: 0, unsafe: 0 });
+    const groupedDimensions: Record<string, typeof reviews[0]["quality"]["dimensions"]> = {};
+    for (const review of reviews) {
+      for (const dimension of review.quality.dimensions) {
+        if (!groupedDimensions[dimension.key]) {
+          groupedDimensions[dimension.key] = [];
+        }
+        groupedDimensions[dimension.key].push(dimension);
+      }
+    }
+
     const dimensionAverages = ["scope", "sources", "safety", "structure", "personalization", "nextStep"].map((key) => {
-      const matching = reviews.flatMap((review) => review.quality.dimensions.filter((dimension) => dimension.key === key));
+      const matching = groupedDimensions[key] || [];
       const first = matching[0];
       return {
         key,
