@@ -87,33 +87,33 @@ function checksum(text: string) {
 async function embedBatch(items: Array<{ id: string; content: string }>) {
   if (!EMBED) return;
 
-  // Process in groups of EMBED_BATCH, EMBED_CONCURRENCY at a time
-  for (let i = 0; i < items.length; i += EMBED_BATCH * EMBED_CONCURRENCY) {
-    const wave = items.slice(i, i + EMBED_BATCH * EMBED_CONCURRENCY);
-    const groups: Array<typeof items> = [];
-    for (let j = 0; j < wave.length; j += EMBED_BATCH) {
-      groups.push(wave.slice(j, j + EMBED_BATCH));
-    }
+  let currentIndex = 0;
 
-    await Promise.all(
-      groups.map(async (group) => {
-        for (const item of group) {
-          const vec = await embedText(item.content);
-          if (vec) {
-            await prisma.$executeRawUnsafe(
-              `UPDATE "DocumentChunk" SET "embedding" = $1::vector WHERE "id" = $2`,
-              vectorLiteral(vec),
-              item.id
-            );
-          }
-        }
-      })
-    );
+  const workers = Array.from({ length: EMBED_CONCURRENCY }, async () => {
+    let processedInCurrentBatch = 0;
+    while (currentIndex < items.length) {
+      const item = items[currentIndex++];
+      if (!item) continue;
 
-    if (i + EMBED_BATCH * EMBED_CONCURRENCY < items.length) {
-      await new Promise((r) => setTimeout(r, EMBED_DELAY_MS));
+      const vec = await embedText(item.content);
+      if (vec) {
+        await prisma.$executeRawUnsafe(
+          `UPDATE "DocumentChunk" SET "embedding" = $1::vector WHERE "id" = $2`,
+          vectorLiteral(vec),
+          item.id
+        );
+      }
+
+      processedInCurrentBatch++;
+      // Apply delay after every EMBED_BATCH items processed by this worker
+      if (processedInCurrentBatch >= EMBED_BATCH && currentIndex < items.length) {
+        processedInCurrentBatch = 0;
+        await new Promise((r) => setTimeout(r, EMBED_DELAY_MS));
+      }
     }
-  }
+  });
+
+  await Promise.all(workers);
 }
 
 // In-memory cache of existing source documents and chunks to avoid 50,000 DB roundtrips.
