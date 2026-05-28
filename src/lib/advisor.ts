@@ -242,7 +242,35 @@ export function deterministicAnswer(args: {
   }
 
   if (args.intent === "CLAIMS") {
-    return claimGuidance(args.insuranceType, sourceLine);
+    const isTerm = args.insuranceType === "TERM";
+    return [
+      "Simple answer:",
+      "I can help you understand likely claim issues, but I cannot guarantee approval. Claim outcomes depend on the policy wording, disclosures, waiting periods, and documents.",
+      "",
+      "Why it matters:",
+      isTerm
+        ? "Term claims often run into problems when there is non-disclosure of smoking, tobacco use, medical history, policy lapse, suicide clause issues, or nominee/document gaps."
+        : "Health claims often run into problems because of PED waiting periods, specific disease waiting periods, non-disclosure, room rent limits, co-pay, exclusions, missing documents, or non-medically necessary hospitalization.",
+      "",
+      "Example:",
+      isTerm
+        ? "If tobacco use was not disclosed in the proposal form, the insurer may investigate before deciding the claim."
+        : "If diabetes was present before buying the policy and the PED waiting period is still active, the insurer may question a related hospitalization claim.",
+      "",
+      "What to check:",
+      isTerm
+        ? "- Policy status and premium payment history.\n- Proposal form disclosures for smoking, tobacco, and medical history.\n- Cause and date of death, nominee documents, and suicide clause.\n- Claim form, death certificate, medical records, and insurer queries."
+        : "- Policy type, diagnosis, hospitalization dates, and discharge summary.\n- PED waiting period and specific disease waiting period status.\n- Whether the condition was disclosed at purchase.\n- Room rent limit, co-pay, exclusions, and missing documents.",
+      "",
+      "Next questions:",
+      isTerm
+        ? "- Was the policy active on the date of death?\n- Was smoking, tobacco use, and medical history disclosed in the proposal form?\n- What reason did the insurer give in writing?"
+        : "- What was the diagnosis and hospitalization date?\n- Was this condition disclosed when buying the policy?\n- Is the PED or specific disease waiting period over?\n- What reason did the insurer give in writing?",
+      "",
+      "Advisor note:",
+      "Share the policy type, event or diagnosis, waiting-period status, disclosure status, and hospitalization or nominee details. For disputes, preserve written communication and consider a licensed advisor, insurer grievance team, or ombudsman review.",
+      sourceLine,
+    ].join("\n");
   }
 
   if (args.intent === "CONCEPT_EXPLANATION") {
@@ -387,38 +415,6 @@ function comparisonChecklist(insuranceType: InsuranceType) {
     "- Sum insured, room rent limit, co-pay, deductible, and PED waiting period.",
     "- Specific disease waiting period, restoration benefit, no claim bonus, and network hospitals.",
     "- Major exclusions and claim process.",
-  ].join("\n");
-}
-
-function claimGuidance(insuranceType: InsuranceType, sourceLine: string) {
-  const isTerm = insuranceType === "TERM";
-  return [
-    "Simple answer:",
-    "I can help you understand likely claim issues, but I cannot guarantee approval. Claim outcomes depend on the policy wording, disclosures, waiting periods, and documents.",
-    "",
-    "Why it matters:",
-    isTerm
-      ? "Term claims often run into problems when there is non-disclosure of smoking, tobacco use, medical history, policy lapse, suicide clause issues, or nominee/document gaps."
-      : "Health claims often run into problems because of PED waiting periods, specific disease waiting periods, non-disclosure, room rent limits, co-pay, exclusions, missing documents, or non-medically necessary hospitalization.",
-    "",
-    "Example:",
-    isTerm
-      ? "If tobacco use was not disclosed in the proposal form, the insurer may investigate before deciding the claim."
-      : "If diabetes was present before buying the policy and the PED waiting period is still active, the insurer may question a related hospitalization claim.",
-    "",
-    "What to check:",
-    isTerm
-      ? "- Policy status and premium payment history.\n- Proposal form disclosures for smoking, tobacco, and medical history.\n- Cause and date of death, nominee documents, and suicide clause.\n- Claim form, death certificate, medical records, and insurer queries."
-      : "- Policy type, diagnosis, hospitalization dates, and discharge summary.\n- PED waiting period and specific disease waiting period status.\n- Whether the condition was disclosed at purchase.\n- Room rent limit, co-pay, exclusions, and missing documents.",
-    "",
-    "Next questions:",
-    isTerm
-      ? "- Was the policy active on the date of death?\n- Was smoking, tobacco use, and medical history disclosed in the proposal form?\n- What reason did the insurer give in writing?"
-      : "- What was the diagnosis and hospitalization date?\n- Was this condition disclosed when buying the policy?\n- Is the PED or specific disease waiting period over?\n- What reason did the insurer give in writing?",
-    "",
-    "Advisor note:",
-    "Share the policy type, event or diagnosis, waiting-period status, disclosure status, and hospitalization or nominee details. For disputes, preserve written communication and consider a licensed advisor, insurer grievance team, or ombudsman review.",
-    sourceLine,
   ].join("\n");
 }
 
